@@ -463,35 +463,55 @@ mod tests {
         );
 
         let provider = DesecProvider::new(token, Some(Duration::from_secs(30)));
+        let cname_sub = format!("cname-test.{origin}");
+        let srv_sub = format!("_sip._tcp.{origin}");
+        let tlsa_sub = format!("_443._tcp.{origin}");
 
-        // check creation
-        let creation_result = provider
-            .create(
-                domain,
-                DnsRecord::A("1.1.1.1".parse().unwrap()),
-                3600,
-                origin,
-            )
-            .await;
+        // --- Create & update all record types ---
 
-        assert!(creation_result.is_ok());
+        // A record
+        assert!(provider.create(domain, DnsRecord::A("1.1.1.1".parse().unwrap()), 3600, origin).await.is_ok());
+        assert!(provider.update(domain, DnsRecord::A("2.2.2.2".parse().unwrap()), 3600, origin).await.is_ok());
 
-        // check modification
-        let update_result = provider
-            .update(
-                domain,
-                DnsRecord::A("2.2.2.2".parse().unwrap()),
-                3600,
-                origin,
-            )
-            .await;
+        // AAAA record
+        assert!(provider.create(domain, DnsRecord::AAAA("2001:db8::1".parse().unwrap()), 3600, origin).await.is_ok());
+        assert!(provider.update(domain, DnsRecord::AAAA("2001:db8::2".parse().unwrap()), 3600, origin).await.is_ok());
 
-        assert!(update_result.is_ok());
+        // TXT record
+        assert!(provider.create(domain, DnsRecord::TXT("v=spf1 -all".to_string()), 3600, origin).await.is_ok());
+        assert!(provider.update(domain, DnsRecord::TXT("v=spf1 ~all".to_string()), 3600, origin).await.is_ok());
 
-        // check deletion
-        let deletion_result = provider.delete(domain, origin, DnsRecordType::A).await;
+        // MX record
+        assert!(provider.create(domain, DnsRecord::MX(MXRecord { exchange: format!("mail.{origin}"), priority: 10 }), 3600, origin).await.is_ok());
+        assert!(provider.update(domain, DnsRecord::MX(MXRecord { exchange: format!("mail2.{origin}"), priority: 20 }), 3600, origin).await.is_ok());
 
-        assert!(deletion_result.is_ok());
+        // CNAME record (dedicated subdomain — cannot coexist with other record types)
+        assert!(provider.create(&cname_sub, DnsRecord::CNAME(format!("target.{origin}")), 3600, origin).await.is_ok());
+        assert!(provider.update(&cname_sub, DnsRecord::CNAME(format!("target2.{origin}")), 3600, origin).await.is_ok());
+
+        // SRV record
+        assert!(provider.create(&srv_sub, DnsRecord::SRV(SRVRecord { priority: 10, weight: 20, port: 5060, target: format!("sip.{origin}") }), 3600, origin).await.is_ok());
+        assert!(provider.update(&srv_sub, DnsRecord::SRV(SRVRecord { priority: 20, weight: 10, port: 5060, target: format!("sip2.{origin}") }), 3600, origin).await.is_ok());
+
+        // TLSA record
+        assert!(provider.create(&tlsa_sub, DnsRecord::TLSA(TLSARecord { cert_usage: TlsaCertUsage::DaneEe, selector: TlsaSelector::Spki, matching: TlsaMatching::Sha256, cert_data: vec![0xe3, 0xb0, 0xc4, 0x42] }), 3600, origin).await.is_ok());
+        assert!(provider.update(&tlsa_sub, DnsRecord::TLSA(TLSARecord { cert_usage: TlsaCertUsage::DaneEe, selector: TlsaSelector::Spki, matching: TlsaMatching::Sha256, cert_data: vec![0xab, 0xcd, 0xef, 0x01] }), 3600, origin).await.is_ok());
+
+        // CAA record
+        assert!(provider.create(domain, DnsRecord::CAA(CAARecord::Issue { issuer_critical: false, name: Some("letsencrypt.org".to_string()), options: vec![] }), 3600, origin).await.is_ok());
+        assert!(provider.update(domain, DnsRecord::CAA(CAARecord::Issue { issuer_critical: false, name: Some("sectigo.com".to_string()), options: vec![] }), 3600, origin).await.is_ok());
+
+        // Set DESEC_NO_CLEANUP=1 to skip deletion (e.g. to inspect records in the web UI).
+        if std::env::var("DESEC_NO_CLEANUP").unwrap_or_default().is_empty() {
+            assert!(provider.delete(domain, origin, DnsRecordType::A).await.is_ok());
+            assert!(provider.delete(domain, origin, DnsRecordType::AAAA).await.is_ok());
+            assert!(provider.delete(domain, origin, DnsRecordType::TXT).await.is_ok());
+            assert!(provider.delete(domain, origin, DnsRecordType::MX).await.is_ok());
+            assert!(provider.delete(&cname_sub, origin, DnsRecordType::CNAME).await.is_ok());
+            assert!(provider.delete(&srv_sub, origin, DnsRecordType::SRV).await.is_ok());
+            assert!(provider.delete(&tlsa_sub, origin, DnsRecordType::TLSA).await.is_ok());
+            assert!(provider.delete(domain, origin, DnsRecordType::CAA).await.is_ok());
+        }
     }
 
     #[test]
