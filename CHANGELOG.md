@@ -1,3 +1,7 @@
+dns-update 0.2.3
+================================
+- Fix deSEC provider to include trailing dots on MX, SRV, CNAME and NS record values, as required by the API.
+
 dns-update 0.2.2
 ================================
 - Fix `CAA` record updates for Cloudflare provider.
