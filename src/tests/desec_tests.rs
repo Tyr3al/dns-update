@@ -63,7 +63,7 @@ mod tests {
             "subname": "test",
             "type": "MX",
             "ttl": 3600,
-            "records": ["10 mail.example.com"],
+            "records": ["10 mail.example.com."],
         });
 
         let mock = server
@@ -79,7 +79,7 @@ mod tests {
                     "domain": "example.com",
                     "subname": "test",
                     "name": "test.example.com.",
-                    "records": ["10 mail.example.com"],
+                    "records": ["10 mail.example.com."],
                     "ttl": 3600,
                     "type": "MX",
                     "touched": "2025-07-25T19:18:37.292390Z"
@@ -147,6 +147,7 @@ mod tests {
             "ttl": 3600,
             "records": ["2001:db8::1"],
         });
+
 
         let mock = server
             .mock("PUT", "/domains/example.com/rrsets/test/AAAA/")
